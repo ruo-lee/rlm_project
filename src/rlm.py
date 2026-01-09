@@ -1,4 +1,3 @@
-import re
 import time
 
 from google.genai import types
@@ -31,6 +30,16 @@ CRITICAL INSTRUCTIONS:
 - ALWAYS wrap your Python code in ```python ... ``` blocks.
 - DO NOT just guess. Use the `context` variable.
 - To finish, you MUST print a line starting with "FINAL ANSWER:".
+
+CODE SAFETY RULES (VERY IMPORTANT):
+- NEVER use triple backticks (```) inside your Python code strings. This will break parsing.
+- When cleaning LLM responses that might contain markdown, use single character checks like:
+  - `if "json" in response:` instead of checking for backtick patterns
+  - `response.split("json")` or regex patterns
+  - `.startswith("{")` to detect JSON directly
+- For JSON parsing from llm_query responses:
+  - First try `json.loads(response.strip())`
+  - If that fails, try extracting JSON by finding first `{` and last `}`
 """
 
 
@@ -188,6 +197,46 @@ class RLMAgent:
         self.logger.info(f"Full log saved to: {self.log_file}")
 
     def _extract_code_blocks(self, text: str) -> list[str]:
-        pattern = r"```python(.*?)```"
-        matches = re.findall(pattern, text, re.DOTALL)
-        return [m.strip() for m in matches]
+        """
+        Extract Python code blocks from markdown text.
+        Handles cases where ``` appears inside string literals in the code.
+        """
+        blocks = []
+        lines = text.split("\n")
+        in_code_block = False
+        current_block = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            if not in_code_block:
+                # Look for start of python code block
+                stripped = line.strip()
+                if stripped.startswith("```python") or stripped == "```python":
+                    in_code_block = True
+                    current_block = []
+                    i += 1
+                    continue
+            else:
+                # We're inside a code block
+                # Check if this line is ONLY ``` (the closing marker)
+                stripped = line.strip()
+
+                # The closing ``` should be on its own line (possibly with whitespace)
+                if stripped == "```":
+                    # End of code block
+                    if current_block:
+                        blocks.append("\n".join(current_block))
+                    in_code_block = False
+                    current_block = []
+                else:
+                    current_block.append(line)
+
+            i += 1
+
+        # Handle unclosed block (shouldn't happen, but just in case)
+        if in_code_block and current_block:
+            blocks.append("\n".join(current_block))
+
+        return [b.strip() for b in blocks if b.strip()]
