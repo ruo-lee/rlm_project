@@ -223,7 +223,17 @@ class PythonREPL:
                 exec(code, self.scope)
 
             output = stdout_buffer.getvalue()
-            return output if output else "(No output)"
+            if not output:
+                return "(No output)"
+
+            # Truncate output to prevent token explosion
+            max_len = 2000
+            if len(output) > max_len:
+                return (
+                    output[:max_len]
+                    + f"\n... [Output truncated. Total length: {len(output)} chars]"
+                )
+            return output
 
         except Exception as e:
             return f"Runtime Error: {e}"
@@ -258,7 +268,17 @@ class PythonREPL:
                 exec(byte_code.code, restricted_globals)
 
             output = stdout_buffer.getvalue()
-            return output if output else "(No output)"
+            if not output:
+                return "(No output)"
+
+            # Truncate output to prevent token explosion
+            max_len = 2000
+            if len(output) > max_len:
+                return (
+                    output[:max_len]
+                    + f"\n... [Output truncated. Total length: {len(output)} chars]"
+                )
+            return output
 
         except Exception as e:
             return f"Sandbox Error: {e}"

@@ -79,18 +79,24 @@ class RLMAgent:
                 response_stream = self.chat.send_message_stream(next_prompt)
 
                 response_text = ""
+                final_usage = None
+
                 for chunk in response_stream:
                     if chunk.text:
                         text_chunk = chunk.text
                         response_text += text_chunk
                         print(colored(text_chunk, "blue"), end="", flush=True)
 
-                    # Track usage if available in chunks (usually last chunk)
+                    # Capture usage metadata (it accumulates, so last one is total)
                     if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
-                        u = chunk.usage_metadata
-                        self._update_stats(
-                            u.prompt_token_count, u.candidates_token_count
-                        )
+                        final_usage = chunk.usage_metadata
+
+                # Update stats once with the final cumulative usage
+                if final_usage:
+                    self._update_stats(
+                        final_usage.prompt_token_count,
+                        final_usage.candidates_token_count,
+                    )
 
                 # Count this as one LLM call after streaming completes
                 self.stats["llm_calls"] += 1

@@ -65,4 +65,8 @@ Rules:
 - Wrap code in ```python ... ```
 - End with "FINAL ANSWER: [answer]"
 - Complete in 3-5 steps
+- **BE CONCISE**: Minimal explanation, focus on code.
+- **EARLY EXIT**: If you find the answer, stop and output "FINAL ANSWER" immediately. Do NOT double-check or verify if the answer is clear from the context.
+- **DO NOT PRINT LARGE DATA**: Large outputs consume tokens. Print only summaries or short snippets.
+- **PYTHON FIRST**: Use Python for searching, counting, and filtering keywords. Do NOT use `llm_query_batch` for simple search tasks unless Python fails or understanding is required.
 """
