@@ -180,9 +180,31 @@ def _print_comparison(results: dict) -> None:
 
 if __name__ == "__main__":
     import argparse
+    import urllib.request
+
+    DATASETS = {
+        "1": {
+            "name": "NSMC (네이버 영화 리뷰)",
+            "path": "data/ratings_train.txt",
+            "url": "https://raw.githubusercontent.com/e9t/nsmc/master/ratings_train.txt",
+        },
+        "2": {
+            "name": "Korean CSV/Text (Wiki Sample)",
+            "path": "data/wiki_ko_sample.txt",
+            "url": None,
+        },
+    }
 
     parser = argparse.ArgumentParser(description="RLM Benchmark: Baseline vs Optimized")
     parser.add_argument("-q", "--query", type=str, help="Query to test")
+    parser.add_argument(
+        "-d",
+        "--dataset",
+        type=str,
+        choices=["1", "2"],
+        default="1",
+        help="Dataset: 1=NSMC, 2=Wiki",
+    )
     parser.add_argument(
         "-s", "--size", type=str, default="100k", help="Context size (100k, 500k, 1m)"
     )
@@ -201,11 +223,30 @@ if __name__ == "__main__":
 
     load_dotenv(dotenv_path=".env.local")
 
-    with open("ratings_train.txt", "r") as f:
+    load_dotenv(dotenv_path=".env.local")
+
+    dataset_info = DATASETS[args.dataset]
+    data_path = dataset_info["path"]
+    data_url = dataset_info["url"]
+
+    if not os.path.exists(data_path):
+        if data_url:
+            print(f"Downloading {data_path}...")
+            urllib.request.urlretrieve(data_url, data_path)
+            print("Download complete.")
+        else:
+            print(f"Error: Local file {data_path} not found.")
+            sys.exit(1)
+
+    print(f"Loading dataset: {dataset_info['name']} ({data_path})")
+    with open(data_path, "r", encoding="utf-8") as f:
         full_text = f.read()
 
     sizes = {"100k": 100000, "500k": 500000, "1m": 1000000}
     context_limit = sizes.get(args.size, 100000)
+    if context_limit and context_limit > len(full_text):
+        context_limit = len(full_text)
+
     context = full_text[:context_limit]
 
     query = (

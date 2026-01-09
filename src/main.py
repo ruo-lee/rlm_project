@@ -42,9 +42,32 @@ TEST_QUERIES = {
         "description": "비교 대조 분석 - RLM() 재귀 호출 권장",
     },
     "5": {
+        "name": "[Wiki] 조선시대 문서 찾기 (Verifiable)",
+        "query": "이 데이터셋에서 '조선'이라는 단어가 포함된 문서는 몇 개인지 세어주고, 그 중 가장 긴 문서의 제목을 알려줘.",
+        "description": "검증 가능한 검색 작업 (grep/wc로 확인 가능)",
+    },
+    "6": {
+        "name": "[Wiki] 주제 분류 (Complex)",
+        "query": "전체 문서를 훑어보고 주요 카테고리 5개를 정의한 뒤, 각 카테고리에 속하는 대표적인 문서 제목을 3개씩 나열해줘.",
+        "description": "전체적인 이해와 분류 능력 테스트",
+    },
+    "7": {
         "name": "Custom Query",
         "query": None,
         "description": "직접 질문 입력",
+    },
+}
+
+DATASETS = {
+    "1": {
+        "name": "NSMC (네이버 영화 리뷰)",
+        "path": "data/ratings_train.txt",
+        "url": "https://raw.githubusercontent.com/e9t/nsmc/master/ratings_train.txt",
+    },
+    "2": {
+        "name": "Korean CSV/Text (Wiki Sample)",
+        "path": "data/wiki_ko_sample.txt",
+        "url": None,  # Local only
     },
 }
 
@@ -71,7 +94,15 @@ Examples:
         """,
     )
     parser.add_argument(
-        "-q", "--query", type=str, help="Query number (1-4) or custom query string"
+        "-q", "--query", type=str, help="Query number (1-7) or custom query string"
+    )
+    parser.add_argument(
+        "-d",
+        "--dataset",
+        type=str,
+        choices=["1", "2"],
+        default="1",
+        help="Dataset selection: 1=NSMC, 2=Wiki",
     )
     parser.add_argument(
         "-s",
@@ -134,6 +165,10 @@ def select_size_interactive(full_length: int) -> int:
 def load_context(data_file: str, data_url: str) -> str:
     """Download and load context data."""
     if not os.path.exists(data_file):
+        if data_url is None:
+            print(colored(f"Error: Local file {data_file} not found.", "red"))
+            sys.exit(1)
+
         print(colored(f"Downloading {data_file}...", "yellow"))
         import urllib.request
 
@@ -176,8 +211,16 @@ def main():
     print(colored("═" * 60, "green"))
 
     # Load context
-    data_file = "ratings_train.txt"
-    data_url = "https://raw.githubusercontent.com/e9t/nsmc/master/ratings_train.txt"
+    # Select dataset
+    if args.dataset == "2":
+        dataset_info = DATASETS["2"]
+    else:
+        dataset_info = DATASETS["1"]
+
+    data_file = dataset_info["path"]
+    data_url = dataset_info["url"]
+
+    print(colored(f"Dataset: {dataset_info['name']}", "cyan"))
     full_text = load_context(data_file, data_url)
 
     # Determine context size
