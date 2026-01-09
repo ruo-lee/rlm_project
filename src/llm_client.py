@@ -30,7 +30,32 @@ class GeminiClient:
             response = self.client.models.generate_content(
                 model=self.model_name, contents=prompt, config=config
             )
-            return response.text
+
+            usage = {
+                "prompt_token_count": 0,
+                "candidates_token_count": 0,
+                "total_token_count": 0,
+            }
+
+            if response.usage_metadata:
+                usage["prompt_token_count"] = (
+                    response.usage_metadata.prompt_token_count or 0
+                )
+                usage["candidates_token_count"] = (
+                    response.usage_metadata.candidates_token_count or 0
+                )
+                usage["total_token_count"] = (
+                    response.usage_metadata.total_token_count or 0
+                )
+
+            return {"text": response.text, "usage": usage}
         except Exception as e:
             print(f"Error generating content: {e}")
-            return f"Error: {e}"
+            return {
+                "text": f"Error: {e}",
+                "usage": {
+                    "prompt_token_count": 0,
+                    "candidates_token_count": 0,
+                    "total_token_count": 0,
+                },
+            }

@@ -1,9 +1,11 @@
 import re
+import time
 
 from google.genai import types
 from termcolor import colored
 
 from src.llm_client import GeminiClient
+from src.logger_config import setup_logger
 from src.repl import PythonREPL
 
 SYSTEM_PROMPT_TEMPLATE = """
@@ -36,20 +38,32 @@ class RLMAgent:
     def __init__(self, output_dir: str = "."):
         self.client = GeminiClient()
         self.max_steps = 10
-        self.chat_history = (
-            []
-        )  # Use a simple list for history management with google-genai chats
-        self.chat = None  # Will store the chat session
+        self.chat_history = []
+        self.chat = None
+
+        # Metrics
+        self.stats = {
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "start_time": 0,
+            "end_time": 0,
+            "steps": [],
+        }
+
+        # Setup Logger
+        self.logger, self.log_file = setup_logger()
 
     def run(self, context_text: str, user_query: str):
-        print(colored(f"--- Starting RLM on query: {user_query} ---", "green"))
+        self.stats["start_time"] = time.time()
+        self.logger.info("--- Starting RLM ---")
+        self.logger.info(f"Query: {user_query}")
+        self.logger.info(f"Context Length: {len(context_text)} chars")
 
         # 1. Initialize REPL
         repl = PythonREPL(context_text, self._sub_llm_call)
 
-        # 2. Initialize Chat Session with System Prompt
-        # google-genai supports chats.
-        # We start a chat with the system instruction config.
+        # 2. Initialize Chat Session
         self.chat = self.client.client.chats.create(
             model=self.client.model_name,
             config=types.GenerateContentConfig(
@@ -57,72 +71,121 @@ class RLMAgent:
             ),
         )
 
-        # Initial user message
         user_message = f"Query: {user_query}\n\nContext length: {len(context_text)} chars.\nPlease start by exploring the context."
-
-        print(colored("RLM Initialized. Entering loop...", "cyan"))
-
         next_prompt = user_message
 
         for step in range(self.max_steps):
-            print(colored(f"\n--- Step {step + 1}/{self.max_steps} ---", "yellow"))
+            step_start_time = time.time()
+            self.logger.info(f"\n=== Step {step + 1}/{self.max_steps} ===")
 
             # Send message to chat
             try:
-                # Note: google-genai Chat.send_message might not support stream argument directly in this version.
-                # Switching to synchronous call for stability.
+                self.logger.info("[Action] Sending prompt to Root LLM...")
                 print(colored("[RLM Thought] (Thinking...):", "blue"))
-                response = self.chat.send_message(next_prompt)
-                response_text = response.text
-                print(colored(response_text, "blue"))
-            except Exception as e:
-                print(colored(f"Error during LLM call: {e}", "red"))
-                return "Error during execution."
 
-            # print(colored(f"[RLM Thought]:\n{response_text}", "blue")) # Already printed via stream
+                response_stream = self.chat.send_message_stream(next_prompt)
+
+                response_text = ""
+                for chunk in response_stream:
+                    if chunk.text:
+                        text_chunk = chunk.text
+                        response_text += text_chunk
+                        print(colored(text_chunk, "blue"), end="", flush=True)
+
+                    # Track usage if available in chunks (usually last chunk)
+                    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                        u = chunk.usage_metadata
+                        self._update_stats(
+                            u.prompt_token_count, u.candidates_token_count
+                        )
+
+                print()  # Newline after thought stream
+
+                # Log the full thought after streaming
+                self.logger.info(f"[RLM Thought]:\n{response_text}")
+
+            except Exception as e:
+                self.logger.error(f"Error during LLM call: {e}")
+                return "Error during execution."
 
             # Parse code
             code_blocks = self._extract_code_blocks(response_text)
 
+            step_info = {
+                "step": step + 1,
+                "thought": response_text,
+                "code_executed": None,
+                "output": None,
+                "duration": time.time() - step_start_time,
+            }
+
             if not code_blocks:
                 if "FINAL ANSWER:" in response_text:
+                    self._finish_run()
                     return response_text.split("FINAL ANSWER:")[-1].strip()
 
-                print(
-                    colored(
-                        "[System]: No code block found. Asking model to write code or finish.",
-                        "red",
-                    )
-                )
+                self.logger.warning("No code block found. Asking model to retry.")
                 next_prompt = "You didn't provide any code. Please write Python code to inspect the context or output 'FINAL ANSWER:'."
+                self.stats["steps"].append(step_info)
                 continue
 
             # Execute code
             full_code = "\n".join(code_blocks)
-            print(colored(f"[Executing Code]:\n{full_code}", "magenta"))
+            self.logger.info(f"[Executing Code]:\n{full_code}")
+            step_info["code_executed"] = full_code
 
             execution_output = repl.execute(full_code)
-            # Truncate output to avoid blowing up context too fast
+
+            # Truncate output for log readability, but full could be in file if separate handler used
             msg_output = (
                 execution_output[:2000] + "...(truncated)"
                 if len(execution_output) > 2000
                 else execution_output
             )
-            print(colored(f"[Execution Output]:\n{msg_output}", "white"))
+            self.logger.info(f"[Execution Output]:\n{msg_output}")
+            step_info["output"] = execution_output
 
-            # Pass output back to LLM in next turn
+            # Pass output back to LLM
             next_prompt = f"Code Output:\n{execution_output}\n\nBased on this, what is the next step?"
 
             if "FINAL ANSWER:" in response_text:
-                # It might have output the answer AND code.
-                # Usually we trust the text if it says final answer.
+                self._finish_run()
                 return response_text.split("FINAL ANSWER:")[-1].strip()
 
+            self.stats["steps"].append(step_info)
+
+        self._finish_run()
         return "Max steps reached without final answer."
 
     def _sub_llm_call(self, prompt: str) -> str:
-        """This is the function available inside REPL as `llm_query`."""
-        return self.client.generate_content(prompt)
+        """Function exposed to REPL as `llm_query`."""
+        self.logger.info(f"[Sub-LLM Call] Prompt: {prompt[:100]}...")
+        result = self.client.generate_content(prompt)
+
+        # Track usage from sub-calls
+        usage = result.get("usage", {})
+        self._update_stats(
+            usage.get("prompt_token_count", 0), usage.get("candidates_token_count", 0)
+        )
+
+        return result["text"]
+
+    def _update_stats(self, input_tokens, output_tokens):
+        if not input_tokens or not output_tokens:
+            return
+        self.stats["total_input_tokens"] += input_tokens
+        self.stats["total_output_tokens"] += output_tokens
+        self.stats["total_tokens"] += input_tokens + output_tokens
+
+    def _finish_run(self):
+        self.stats["end_time"] = time.time()
+        duration = self.stats["end_time"] - self.stats["start_time"]
+        self.logger.info("\n--- RLM Execution Copmlete ---")
+        self.logger.info(f"Total Duration: {duration:.2f}s")
+        self.logger.info(
+            f"Total Tokens: {self.stats['total_tokens']} (In: {self.stats['total_input_tokens']}, Out: {self.stats['total_output_tokens']})"
+        )
+        self.logger.info(f"Full log saved to: {self.log_file}")
 
     def _extract_code_blocks(self, text: str) -> list[str]:
         pattern = r"```python(.*?)```"
