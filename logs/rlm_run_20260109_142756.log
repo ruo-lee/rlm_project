@@ -153,3 +153,495 @@ print(f"Received {len(results)} results from LLM.")
 2026-01-09 14:30:20 [INFO] [Sub-LLM Call] Prompt: 
     Analyze the following list of Korean movie reviews.
     Extract all distinct words that carry a...
+2026-01-09 14:32:20 [INFO] [Execution Output]:
+[REPL] Estimated chunk size: 429 (will create ~5 chunks for 2145 items)
+Estimated chunk size: 429
+Created 5 chunks.
+
+[REPL] Batch processing 5 prompts with 4 workers...
+  [Batch 1] Calling LLM...
+  [Batch 2] Calling LLM...
+  [Batch 3] Calling LLM...
+  [Batch 4] Calling LLM...
+  [Batch 5] Calling LLM...
+[REPL] Batch complete. 5 results collected.
+Received 5 results from LLM.
+
+2026-01-09 14:32:20 [INFO] 
+=== Step 4/10 ===
+2026-01-09 14:32:20 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:32:28 [INFO] [RLM Thought]:
+I will parse the results, aggregate the word counts, and find the top 3 positive words.
+
+```python
+import json
+import re
+from collections import Counter
+
+word_counter = Counter()
+
+for i, res in enumerate(results):
+    try:
+        # Try to find JSON list pattern
+        match = re.search(r'\[.*\]', res, re.DOTALL)
+        if match:
+            json_str = match.group()
+            words = json.loads(json_str)
+            # Normalize words (strip whitespace)
+            words = [w.strip() for w in words if isinstance(w, str)]
+            word_counter.update(words)
+        else:
+            print(f"Warning: No JSON list found in result {i}")
+            # Fallback: try parsing the whole string if it's clean
+            try:
+                words = json.loads(res)
+                if isinstance(words, list):
+                    word_counter.update([w.strip() for w in words if isinstance(w, str)])
+            except:
+                print(f"Failed to parse result {i} completely.")
+    except Exception as e:
+        print(f"Error processing result {i}: {e}")
+
+print("Top 10 most frequent words found:", word_counter.most_common(10))
+
+# Get top 3
+top_3 = word_counter.most_common(3)
+print("Top 3 positive words:", top_3)
+```
+2026-01-09 14:32:28 [INFO] [Executing Code]:
+import json
+import re
+from collections import Counter
+
+word_counter = Counter()
+
+for i, res in enumerate(results):
+    try:
+        # Try to find JSON list pattern
+        match = re.search(r'\[.*\]', res, re.DOTALL)
+        if match:
+            json_str = match.group()
+            words = json.loads(json_str)
+            # Normalize words (strip whitespace)
+            words = [w.strip() for w in words if isinstance(w, str)]
+            word_counter.update(words)
+        else:
+            print(f"Warning: No JSON list found in result {i}")
+            # Fallback: try parsing the whole string if it's clean
+            try:
+                words = json.loads(res)
+                if isinstance(words, list):
+                    word_counter.update([w.strip() for w in words if isinstance(w, str)])
+            except:
+                print(f"Failed to parse result {i} completely.")
+    except Exception as e:
+        print(f"Error processing result {i}: {e}")
+
+print("Top 10 most frequent words found:", word_counter.most_common(10))
+
+# Get top 3
+top_3 = word_counter.most_common(3)
+print("Top 3 positive words:", top_3)
+2026-01-09 14:32:28 [INFO] [Execution Output]:
+Top 10 most frequent words found: [('최고', 5), ('감동', 5), ('대박', 5), ('재밌게', 5), ('명작', 5), ('여운', 5), ('굿', 5), ('수작', 4), ('괜찮은', 4), ('좋은', 4)]
+Top 3 positive words: [('최고', 5), ('감동', 5), ('대박', 5)]
+
+2026-01-09 14:32:28 [INFO] 
+=== Step 5/10 ===
+2026-01-09 14:32:28 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:32:40 [INFO] [RLM Thought]:
+I will verify the true frequency of the top positive words found by counting their occurrences in the full dataset, as the previous step might have only counted how many chunks they appeared in.
+
+```python
+# Get top 30 candidate words from the previous LLM extraction
+candidate_words = [word for word, count in word_counter.most_common(30)]
+print(f"Candidates to verify: {candidate_words}")
+
+# Count actual occurrences in the full reviews list
+true_counts = Counter()
+
+for review in reviews:
+    for word in candidate_words:
+        if word in review:
+            true_counts[word] += 1
+
+print("True frequency counts:")
+print(true_counts.most_common(10))
+
+final_top_3 = true_counts.most_common(3)
+print(f"Final Top 3: {final_top_3}")
+```
+2026-01-09 14:32:40 [INFO] [Executing Code]:
+# Get top 30 candidate words from the previous LLM extraction
+candidate_words = [word for word, count in word_counter.most_common(30)]
+print(f"Candidates to verify: {candidate_words}")
+
+# Count actual occurrences in the full reviews list
+true_counts = Counter()
+
+for review in reviews:
+    for word in candidate_words:
+        if word in review:
+            true_counts[word] += 1
+
+print("True frequency counts:")
+print(true_counts.most_common(10))
+
+final_top_3 = true_counts.most_common(3)
+print(f"Final Top 3: {final_top_3}")
+2026-01-09 14:32:40 [INFO] [Execution Output]:
+Candidates to verify: ['최고', '감동', '대박', '재밌게', '명작', '여운', '굿', '수작', '괜찮은', '좋은', '아름다운', '최고의', '즐겁게', '볼만함', '꿀잼', '좋다', '탁월한', '매력', '멋진', '잔잔한', '재미있어요', '재미있게', '재미있고', '완성도', '화이팅', '화려한', '감동적인', '훌륭한', '짱짱', '그립다']
+True frequency counts:
+[('최고', 93), ('감동', 62), ('최고의', 45), ('좋은', 36), ('명작', 24), ('재밌게', 23), ('굿', 18), ('여운', 18), ('매력', 17), ('재미있게', 16)]
+Final Top 3: [('최고', 93), ('감동', 62), ('최고의', 45)]
+
+2026-01-09 14:32:40 [INFO] 
+=== Step 6/10 ===
+2026-01-09 14:32:40 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:33:10 [INFO] [RLM Thought]:
+I will perform a more precise count by splitting reviews into tokens to avoid substring overlapping issues (e.g., distinguishing "최고" from "최고의"). This will ensure the top 3 words are accurate distinct tokens.
+
+```python
+# specific token counting
+token_counts = Counter()
+
+for review in reviews:
+    # Simple whitespace tokenization
+    tokens = review.split()
+    # Clean punctuation?
+    # A simple approach: remove non-alphanumeric chars from edges or just count checks
+    for token in tokens:
+        # Remove common punctuation for better matching
+        cleaned = re.sub(r'[^\w\s]', '', token) 
+        if cleaned in candidate_words:
+            token_counts[cleaned] += 1
+        # Also check original token just in case
+        elif token in candidate_words:
+            token_counts[token] += 1
+
+print("Exact token match counts:")
+print(token_counts.most_common(10))
+```
+2026-01-09 14:33:10 [INFO] [Executing Code]:
+# specific token counting
+token_counts = Counter()
+
+for review in reviews:
+    # Simple whitespace tokenization
+    tokens = review.split()
+    # Clean punctuation?
+    # A simple approach: remove non-alphanumeric chars from edges or just count checks
+    for token in tokens:
+        # Remove common punctuation for better matching
+        cleaned = re.sub(r'[^\w\s]', '', token) 
+        if cleaned in candidate_words:
+            token_counts[cleaned] += 1
+        # Also check original token just in case
+        elif token in candidate_words:
+            token_counts[token] += 1
+
+print("Exact token match counts:")
+print(token_counts.most_common(10))
+2026-01-09 14:33:10 [INFO] [Execution Output]:
+Exact token match counts:
+[('최고의', 36), ('최고', 23), ('좋은', 21), ('재밌게', 16), ('재미있게', 13), ('굿', 13), ('아름다운', 9), ('감동', 8), ('감동적인', 8), ('명작', 8)]
+
+2026-01-09 14:33:10 [INFO] 
+=== Step 7/10 ===
+2026-01-09 14:33:10 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:33:23 [INFO] [RLM Thought]:
+I will group the positive words into broader concepts (e.g., variations of "fun" or "best") to get a more accurate semantic count, and double-check the absence of "2023".
+
+```python
+# Concept definitions with regex patterns
+concepts = {
+    "최고 (Best)": r"최고",
+    "감동 (Moving)": r"감동",
+    "재미 (Fun)": r"재미|재밌|잼|꿀잼|즐겁",
+    "명작 (Masterpiece)": r"명작|수작",
+    "좋음 (Good)": r"좋[은아네]|좋다|굿|good",
+    "추천 (Recommend)": r"추천|강추"
+}
+
+concept_counts = Counter()
+
+for review in reviews:
+    for concept, pattern in concepts.items():
+        if re.search(pattern, review):
+            concept_counts[concept] += 1
+
+print("Concept counts:")
+for concept, count in concept_counts.most_common():
+    print(f"{concept}: {count}")
+
+# Double check 2023
+found_2023 = any("2023" in r for r in reviews)
+print(f"Contains '2023': {found_2023}")
+```
+2026-01-09 14:33:23 [INFO] [Executing Code]:
+# Concept definitions with regex patterns
+concepts = {
+    "최고 (Best)": r"최고",
+    "감동 (Moving)": r"감동",
+    "재미 (Fun)": r"재미|재밌|잼|꿀잼|즐겁",
+    "명작 (Masterpiece)": r"명작|수작",
+    "좋음 (Good)": r"좋[은아네]|좋다|굿|good",
+    "추천 (Recommend)": r"추천|강추"
+}
+
+concept_counts = Counter()
+
+for review in reviews:
+    for concept, pattern in concepts.items():
+        if re.search(pattern, review):
+            concept_counts[concept] += 1
+
+print("Concept counts:")
+for concept, count in concept_counts.most_common():
+    print(f"{concept}: {count}")
+
+# Double check 2023
+found_2023 = any("2023" in r for r in reviews)
+print(f"Contains '2023': {found_2023}")
+2026-01-09 14:33:23 [INFO] [Execution Output]:
+Concept counts:
+재미 (Fun): 339
+좋음 (Good): 106
+최고 (Best): 93
+감동 (Moving): 62
+명작 (Masterpiece): 33
+추천 (Recommend): 19
+Contains '2023': False
+
+2026-01-09 14:33:23 [INFO] 
+=== Step 8/10 ===
+2026-01-09 14:33:23 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:33:40 [INFO] [RLM Thought]:
+I will extract reviews labeled as positive (label '1') and count the frequencies of the top candidate words within this specific subset to ensure accuracy.
+
+```python
+# Extract positive reviews based on label column
+positive_reviews = []
+for line in data_rows:
+    parts = line.split('\t')
+    if len(parts) >= 3:
+        # Check label (index 2)
+        if parts[2].strip() == '1':
+            positive_reviews.append(parts[1])
+
+print(f"Total reviews: {len(data_rows)}")
+print(f"Positive reviews: {len(positive_reviews)}")
+
+# Recount candidates in ONLY positive reviews to avoid context errors (e.g., 'not fun' containing 'fun')
+pos_counts = Counter()
+for review in positive_reviews:
+    for word in candidate_words:
+        if word in review:
+            pos_counts[word] += 1
+
+print("Frequency in Positive Reviews:")
+top_final = pos_counts.most_common(5)
+print(top_final)
+```
+2026-01-09 14:33:40 [INFO] [Executing Code]:
+# Extract positive reviews based on label column
+positive_reviews = []
+for line in data_rows:
+    parts = line.split('\t')
+    if len(parts) >= 3:
+        # Check label (index 2)
+        if parts[2].strip() == '1':
+            positive_reviews.append(parts[1])
+
+print(f"Total reviews: {len(data_rows)}")
+print(f"Positive reviews: {len(positive_reviews)}")
+
+# Recount candidates in ONLY positive reviews to avoid context errors (e.g., 'not fun' containing 'fun')
+pos_counts = Counter()
+for review in positive_reviews:
+    for word in candidate_words:
+        if word in review:
+            pos_counts[word] += 1
+
+print("Frequency in Positive Reviews:")
+top_final = pos_counts.most_common(5)
+print(top_final)
+2026-01-09 14:33:40 [INFO] [Execution Output]:
+Total reviews: 2146
+Positive reviews: 1062
+Frequency in Positive Reviews:
+[('최고', 85), ('감동', 49), ('최고의', 42), ('명작', 22), ('재밌게', 22)]
+
+2026-01-09 14:33:40 [INFO] 
+=== Step 9/10 ===
+2026-01-09 14:33:40 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:33:59 [INFO] [RLM Thought]:
+I will analyze the positive reviews (label 1) by tokenizing them and counting the most frequent words. Then, I will ask the LLM to identify the top 3 positive words from the most frequent list, ensuring variations are handled correctly.
+
+```python
+# Aggregate all text from positive reviews
+positive_text = " ".join(positive_reviews)
+
+# Simple tokenization by whitespace
+tokens = positive_text.split()
+
+# Count frequencies
+token_counter = Counter(tokens)
+top_50_tokens = token_counter.most_common(50)
+
+print("Top 50 tokens in positive reviews:")
+print(top_50_tokens)
+
+# Prepare prompt for LLM to select positive words
+prompt_tokens = f"""
+Here is a list of the most frequent words (and their counts) found in positive Korean movie reviews:
+{top_50_tokens}
+
+Task:
+1. Identify the top 3 clearly POSITIVE words.
+2. Ignore neutral words like '영화', '진짜', '너무', '정말', '보고', '수', '본'.
+3. Ignore subject/object particles if they are attached to neutral words.
+4. If there are variations of the same root (e.g., '최고', '최고의', '최고다'), group them and sum their counts to determine the true ranking.
+5. Return the top 3 positive words in Korean with their approximated counts.
+6. Format as JSON: {{"top_3": [["word1", count], ["word2", count], ["word3", count]]}}
+"""
+
+result_top3 = llm_query(prompt_tokens)
+print("LLM Analysis Result:")
+print(result_top3)
+```
+2026-01-09 14:33:59 [INFO] [Executing Code]:
+# Aggregate all text from positive reviews
+positive_text = " ".join(positive_reviews)
+
+# Simple tokenization by whitespace
+tokens = positive_text.split()
+
+# Count frequencies
+token_counter = Counter(tokens)
+top_50_tokens = token_counter.most_common(50)
+
+print("Top 50 tokens in positive reviews:")
+print(top_50_tokens)
+
+# Prepare prompt for LLM to select positive words
+prompt_tokens = f"""
+Here is a list of the most frequent words (and their counts) found in positive Korean movie reviews:
+{top_50_tokens}
+
+Task:
+1. Identify the top 3 clearly POSITIVE words.
+2. Ignore neutral words like '영화', '진짜', '너무', '정말', '보고', '수', '본'.
+3. Ignore subject/object particles if they are attached to neutral words.
+4. If there are variations of the same root (e.g., '최고', '최고의', '최고다'), group them and sum their counts to determine the true ranking.
+5. Return the top 3 positive words in Korean with their approximated counts.
+6. Format as JSON: {{"top_3": [["word1", count], ["word2", count], ["word3", count]]}}
+"""
+
+result_top3 = llm_query(prompt_tokens)
+print("LLM Analysis Result:")
+print(result_top3)
+2026-01-09 14:33:59 [INFO] [Sub-LLM Call] Prompt: 
+Here is a list of the most frequent words (and their counts) found in positive Korean movie reviews...
+2026-01-09 14:35:10 [INFO] [Execution Output]:
+Top 50 tokens in positive reviews:
+[('영화', 85), ('정말', 76), ('이', 52), ('너무', 48), ('진짜', 38), ('최고의', 34), ('보고', 28), ('더', 27), ('영화를', 26), ('영화.', 26), ('본', 25), ('잘', 23), ('있는', 22), ('수', 22), ('ㅠㅠ', 22), ('이런', 21), ('역시', 21), ('그', 20), ('영화가', 19), ('그냥', 18), ('난', 18), ('보는', 17), ('하는', 17), ('참', 16), ('완전', 16), ('왜', 16), ('꼭', 16), ('다시', 15), ('재밌게', 15), ('ㅋㅋ', 15), ('또', 14), ('다', 14), ('내가', 14), ('좀', 14), ('평점이', 13), ('연기', 13), ('없는', 13), ('내', 13), ('좋은', 13), ('것', 13), ('재미있게', 12), ('이거', 12), ('평점', 11), ('넘', 11), ('굿', 11), ('보면', 10), ('한', 10), ('ㅋㅋㅋ', 10), ('ㅋ', 10), ('솔직히', 10)]
+
+[REPL] Calling sub-LLM with prompt: 
+Here is a list of the most frequent words (and th...
+LLM Analysis Result:
+Based on the provided frequency list and the instructions to ignore neutral/structural words and group variations of the same root, here is the analysis:
+
+1.  **"최고" (Best/Highest):**
+    *   Found: `'최고의'` (34).
+    *   Total Count: **34**
+
+2.  **"재미" (Fun/Interesting):**
+    *   Found: `'재밌게'` (15) and `'재미있게'` (12).
+    *   Note: '재밌게' is a contraction of '재미있게'; both come from the root '재미' (fun).
+    *   Total Count: 15 + 12 = **27**
+
+3.  **"잘" (Well):**
+    *   Found: `'잘'` (23).
+    *   Note: Used in contexts like "잘 만들었다" (well made) or "잘 봤다" (watched well/enjoyed). It is the next most frequent positive descriptor after excluding stop words like '너무', '정말', '완전' (intensifier), and '역시' (modal adverb).
+    *   Total Count: **23**
+
+*(Runner-ups were '좋은' (13) and '굿' (11), which are significantly lower in count even if combined conceptually).*
+
+```json
+{
+  "top_3": [
+    ["최고", 34],
+    ["재미", 27],
+    ["잘", 23]
+  ]
+}
+```
+
+2026-01-09 14:35:10 [INFO] 
+=== Step 10/10 ===
+2026-01-09 14:35:10 [INFO] [Action] Sending prompt to Root LLM...
+2026-01-09 14:35:28 [INFO] [RLM Thought]:
+I will perform a final verification of the top positive words by counting the frequency of key positive roots (like "fun", "best", "moving") within the positive reviews. This approach is more accurate for Korean text than simple token splitting.
+
+```python
+# Roots to check in positive reviews
+roots = {
+    "재미/재밌 (Fun)": ["재미", "재밌", "잼", "즐겁"],
+    "최고 (Best)": ["최고", "짱", "갓"],
+    "감동 (Moving)": ["감동", "울"],
+    "좋음 (Good)": ["좋", "굿", "good", "괜찮", "착한"],
+    "명작 (Masterpiece)": ["명작", "수작"],
+    "추천 (Recommend)": ["추천", "강추"]
+}
+
+root_counts = {key: 0 for key in roots}
+
+# Count how many positive reviews contain any of the variations for each root
+for review in positive_reviews:
+    for category, variations in roots.items():
+        if any(var in review for var in variations):
+            root_counts[category] += 1
+
+print("Final Concept Frequency in Positive Reviews:")
+sorted_roots = sorted(root_counts.items(), key=lambda x: x[1], reverse=True)
+for cat, count in sorted_roots:
+    print(f"{cat}: {count}")
+```
+2026-01-09 14:35:28 [INFO] [Executing Code]:
+# Roots to check in positive reviews
+roots = {
+    "재미/재밌 (Fun)": ["재미", "재밌", "잼", "즐겁"],
+    "최고 (Best)": ["최고", "짱", "갓"],
+    "감동 (Moving)": ["감동", "울"],
+    "좋음 (Good)": ["좋", "굿", "good", "괜찮", "착한"],
+    "명작 (Masterpiece)": ["명작", "수작"],
+    "추천 (Recommend)": ["추천", "강추"]
+}
+
+root_counts = {key: 0 for key in roots}
+
+# Count how many positive reviews contain any of the variations for each root
+for review in positive_reviews:
+    for category, variations in roots.items():
+        if any(var in review for var in variations):
+            root_counts[category] += 1
+
+print("Final Concept Frequency in Positive Reviews:")
+sorted_roots = sorted(root_counts.items(), key=lambda x: x[1], reverse=True)
+for cat, count in sorted_roots:
+    print(f"{cat}: {count}")
+2026-01-09 14:35:28 [INFO] [Execution Output]:
+Final Concept Frequency in Positive Reviews:
+재미/재밌 (Fun): 210
+좋음 (Good): 147
+최고 (Best): 105
+감동 (Moving): 73
+명작 (Masterpiece): 31
+추천 (Recommend): 15
+
+2026-01-09 14:35:28 [INFO] 
+--- RLM Execution Copmlete ---
+2026-01-09 14:35:28 [INFO] Total Duration: 452.20s
+2026-01-09 14:35:28 [INFO] Total Tokens: 390134 (In: 363691, Out: 26443)
+2026-01-09 14:35:28 [INFO] Full log saved to: logs/rlm_run_20260109_142756.log
