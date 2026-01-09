@@ -92,6 +92,8 @@ class RLMAgent:
                             u.prompt_token_count, u.candidates_token_count
                         )
 
+                # Count this as one LLM call after streaming completes
+                self.stats["llm_calls"] += 1
                 print()  # Newline after thought stream
 
                 # Log the full thought after streaming
@@ -158,7 +160,9 @@ class RLMAgent:
         # Track usage from sub-calls
         usage = result.get("usage", {})
         self._update_stats(
-            usage.get("prompt_token_count", 0), usage.get("candidates_token_count", 0)
+            usage.get("prompt_token_count", 0),
+            usage.get("candidates_token_count", 0),
+            is_new_call=True,
         )
 
         return result["text"]
@@ -234,13 +238,16 @@ class RLMAgent:
         self.logger.info(f"[Depth {depth}] Max sub-steps reached")
         return "Sub-problem reached max steps without answer."
 
-    def _update_stats(self, input_tokens, output_tokens):
+    def _update_stats(self, input_tokens, output_tokens, is_new_call=False):
         if not input_tokens or not output_tokens:
             return
         self.stats["total_input_tokens"] += input_tokens
         self.stats["total_output_tokens"] += output_tokens
         self.stats["total_tokens"] += input_tokens + output_tokens
-        self.stats["llm_calls"] += 1
+
+        # Only increment llm_calls when explicitly a new call
+        if is_new_call:
+            self.stats["llm_calls"] += 1
 
         # Calculate cost
         model = self.client.model_name
