@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv  # noqa: E402
 from termcolor import colored  # noqa: E402
 
-from src.rlm import RLMAgent  # noqa: E402
+from src.rlm_optimized import RLMAgent  # noqa: E402
 
 # Load env variables
 load_dotenv(dotenv_path=".env.local")
