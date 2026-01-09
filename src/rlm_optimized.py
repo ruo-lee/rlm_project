@@ -6,7 +6,7 @@ from termcolor import colored
 from src.llm_client import GeminiClient
 from src.logger_config import setup_logger
 from src.repl_optimized import PythonREPL, RecursionGuard
-from src.rlm.config import SYSTEM_PROMPT_OPTIMIZED
+from src.rlm.config import PRICING, SYSTEM_PROMPT_OPTIMIZED
 
 
 class RLMAgent:
@@ -242,7 +242,7 @@ class RLMAgent:
 
         # Calculate cost
         model = self.client.model_name
-        pricing = self.PRICING.get(model, {"input": 0.0, "output": 0.0})
+        pricing = PRICING.get(model, {"input": 0.0, "output": 0.0})
         cost = (input_tokens / 1000) * pricing["input"] + (
             output_tokens / 1000
         ) * pricing["output"]
