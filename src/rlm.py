@@ -1,8 +1,10 @@
 import re
+
+from google.genai import types
 from termcolor import colored
+
 from src.llm_client import GeminiClient
 from src.repl import PythonREPL
-from google.genai import types
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are a Recursive Language Model (RLM).
@@ -29,39 +31,42 @@ CRITICAL INSTRUCTIONS:
 - To finish, you MUST print a line starting with "FINAL ANSWER:".
 """
 
+
 class RLMAgent:
     def __init__(self, output_dir: str = "."):
         self.client = GeminiClient()
         self.max_steps = 10
-        self.chat_history = [] # Use a simple list for history management with google-genai chats
-        self.chat = None # Will store the chat session
-    
+        self.chat_history = (
+            []
+        )  # Use a simple list for history management with google-genai chats
+        self.chat = None  # Will store the chat session
+
     def run(self, context_text: str, user_query: str):
         print(colored(f"--- Starting RLM on query: {user_query} ---", "green"))
-        
+
         # 1. Initialize REPL
         repl = PythonREPL(context_text, self._sub_llm_call)
-        
+
         # 2. Initialize Chat Session with System Prompt
-        # google-genai supports chats. 
+        # google-genai supports chats.
         # We start a chat with the system instruction config.
         self.chat = self.client.client.chats.create(
             model=self.client.model_name,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT_TEMPLATE
-            )
+            ),
         )
-        
+
         # Initial user message
         user_message = f"Query: {user_query}\n\nContext length: {len(context_text)} chars.\nPlease start by exploring the context."
-        
+
         print(colored("RLM Initialized. Entering loop...", "cyan"))
-        
+
         next_prompt = user_message
-        
+
         for step in range(self.max_steps):
             print(colored(f"\n--- Step {step + 1}/{self.max_steps} ---", "yellow"))
-            
+
             # Send message to chat
             try:
                 # Note: google-genai Chat.send_message might not support stream argument directly in this version.
@@ -75,34 +80,43 @@ class RLMAgent:
                 return "Error during execution."
 
             # print(colored(f"[RLM Thought]:\n{response_text}", "blue")) # Already printed via stream
-            
+
             # Parse code
             code_blocks = self._extract_code_blocks(response_text)
-            
+
             if not code_blocks:
                 if "FINAL ANSWER:" in response_text:
                     return response_text.split("FINAL ANSWER:")[-1].strip()
-                
-                print(colored("[System]: No code block found. Asking model to write code or finish.", "red"))
+
+                print(
+                    colored(
+                        "[System]: No code block found. Asking model to write code or finish.",
+                        "red",
+                    )
+                )
                 next_prompt = "You didn't provide any code. Please write Python code to inspect the context or output 'FINAL ANSWER:'."
                 continue
 
             # Execute code
             full_code = "\n".join(code_blocks)
             print(colored(f"[Executing Code]:\n{full_code}", "magenta"))
-            
+
             execution_output = repl.execute(full_code)
             # Truncate output to avoid blowing up context too fast
-            msg_output = execution_output[:2000] + "...(truncated)" if len(execution_output) > 2000 else execution_output
+            msg_output = (
+                execution_output[:2000] + "...(truncated)"
+                if len(execution_output) > 2000
+                else execution_output
+            )
             print(colored(f"[Execution Output]:\n{msg_output}", "white"))
-            
+
             # Pass output back to LLM in next turn
             next_prompt = f"Code Output:\n{execution_output}\n\nBased on this, what is the next step?"
 
             if "FINAL ANSWER:" in response_text:
-                 # It might have output the answer AND code. 
-                 # Usually we trust the text if it says final answer.
-                 return response_text.split("FINAL ANSWER:")[-1].strip()
+                # It might have output the answer AND code.
+                # Usually we trust the text if it says final answer.
+                return response_text.split("FINAL ANSWER:")[-1].strip()
 
         return "Max steps reached without final answer."
 
