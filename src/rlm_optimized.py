@@ -5,7 +5,7 @@ from termcolor import colored
 
 from src.llm_client import GeminiClient
 from src.logger_config import setup_logger
-from src.repl import PythonREPL, RecursionGuard
+from src.repl_optimized import PythonREPL, RecursionGuard
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are a Recursive Language Model (RLM).
