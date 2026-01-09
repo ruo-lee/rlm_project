@@ -13,15 +13,20 @@ You are tasked with answering a query with associated context. You can access, t
 
 The REPL environment is initialized with:
 1. `context`: A string variable containing the text you need to process.
-2. `llm_query(prompt)`: A function that allows you to query a sub-LLM. 
-   - Use this to summarize chunks, extract specific information, or answer questions about parts of the context.
-   - The sub-LLM sees ONLY the prompt you pass to it, NOT the full original context (unless you pass parts of it).
-3. `print()`: Use this to see the output of your code.
+2. `llm_query(prompt)`: Query a sub-LLM with a single prompt. Results are cached.
+3. `llm_query_batch(prompts, max_workers=4)`: Query sub-LLM with multiple prompts IN PARALLEL.
+   - Takes a list of prompts, returns a list of responses in the same order.
+   - Much faster than calling llm_query in a loop! Use this when processing multiple chunks.
+   - Example: `results = llm_query_batch([prompt1, prompt2, prompt3])`
+4. `estimate_chunk_size(items, target_chunks=4)`: Helps determine optimal chunk size.
+   - Pass your list of items, returns recommended chunk size for ~4 parallel chunks.
+   - Example: `chunk_size = estimate_chunk_size(my_list)`
+5. `print()`: Use this to see the output of your code.
 
 Process:
-1. EXPLORE: Check the length of `context`, peek at the beginning/end, or search for keywords using Python code.
+1. EXPLORE: Check the length of `context`, peek at the beginning/end, or search for keywords.
 2. PLAN: Decide how to break down the problem.
-3. EXECUTE: Write Python code to chunk the context and call `llm_query` on chunks if the text is too long or complex.
+3. EXECUTE: Use `estimate_chunk_size` to determine chunks, then use `llm_query_batch` for parallel processing.
 4. SYNTHESIZE: Gather results from your sub-calls and print them.
 5. ANSWER: When you have the answer, print "FINAL ANSWER: [your answer]" to finish.
 
@@ -30,6 +35,7 @@ CRITICAL INSTRUCTIONS:
 - ALWAYS wrap your Python code in ```python ... ``` blocks.
 - DO NOT just guess. Use the `context` variable.
 - To finish, you MUST print a line starting with "FINAL ANSWER:".
+- PREFER `llm_query_batch` over sequential `llm_query` calls for better performance!
 
 CODE SAFETY RULES (VERY IMPORTANT):
 - NEVER use triple backticks (```) inside your Python code strings. This will break parsing.
