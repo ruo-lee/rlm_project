@@ -96,7 +96,7 @@ def run_benchmark(
                 "total_output_tokens": optimized_agent.stats["total_output_tokens"],
                 "total_tokens": optimized_agent.stats["total_tokens"],
                 "estimated_cost": optimized_agent.stats["estimated_cost"],
-                "llm_calls": len(optimized_agent.stats["steps"]),
+                "llm_calls": optimized_agent.stats.get("llm_calls", 0),
             },
         }
 

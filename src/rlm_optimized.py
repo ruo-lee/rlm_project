@@ -31,6 +31,7 @@ class RLMAgent:
             "end_time": 0,
             "steps": [],
             "estimated_cost": 0.0,
+            "llm_calls": 0,
         }
 
         # Sandbox mode (disabled by default)
@@ -239,6 +240,7 @@ class RLMAgent:
         self.stats["total_input_tokens"] += input_tokens
         self.stats["total_output_tokens"] += output_tokens
         self.stats["total_tokens"] += input_tokens + output_tokens
+        self.stats["llm_calls"] += 1
 
         # Calculate cost
         model = self.client.model_name
