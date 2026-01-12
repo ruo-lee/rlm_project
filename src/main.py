@@ -1,3 +1,15 @@
+#!/usr/bin/env python3
+"""
+Recursive Language Model (RLM) - Unified CLI
+
+Usage:
+    uv run src/main.py                        # Interactive mode
+    uv run src/main.py -q 1 -d 1              # Run query 1 on NSMC
+    uv run src/main.py -q 8 -d 3 -s 500k      # Run Law query on Law Insider
+    uv run src/main.py --benchmark -d 3 -q 9  # Benchmark comparison
+    uv run src/main.py --list                 # List available queries
+"""
+
 import argparse
 import os
 import sys
@@ -11,116 +23,112 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv  # noqa: E402
 from termcolor import colored  # noqa: E402
 
-from src.rlm_optimized import RLMAgent  # noqa: E402
+from src.datasets import CONTEXT_SIZES, DATASETS, TEST_QUERIES  # noqa: E402
 
 # Load env variables
 load_dotenv(dotenv_path=".env.local")
 
 
-# ============================================================================
-# TEST QUERIES - Add new queries here!
-# ============================================================================
-TEST_QUERIES = {
-    "1": {
-        "name": "긍정 단어 분석 (Simple)",
-        "query": "이 데이터셋에서 가장 많이 등장하는 긍정적인 단어 3개를 찾아줘. 그리고 2023년이라는 숫자가 포함된 리뷰가 있는지 확인해줘.",
-        "description": "단순 집계 작업 - llm_query_batch 사용 예상",
-    },
-    "2": {
-        "name": "감정 분포 분석 (Medium)",
-        "query": "긍정(label=1)과 부정(label=0) 리뷰의 평균 길이를 비교하고, 각각에서 가장 자주 사용되는 감정 표현 패턴을 분석해줘.",
-        "description": "비교 분석 - 약간의 복잡도",
-    },
-    "3": {
-        "name": "섹션별 요약 (Complex - RLM 재귀 권장)",
-        "query": "데이터를 1000개씩 5개 섹션으로 나누고, 각 섹션별로 '주요 감정 키워드'와 '대표 리뷰'를 요약해줘. 그리고 전체적인 트렌드를 종합해줘.",
-        "description": "복잡한 다단계 작업 - RLM() 재귀 호출 권장",
-    },
-    "4": {
-        "name": "비교 분석 (Complex - RLM 재귀 권장)",
-        "query": "긍정 리뷰 500개와 부정 리뷰 500개를 각각 분석해서, 긍정에서만 나타나는 단어와 부정에서만 나타나는 단어를 찾고, 그 차이를 설명해줘.",
-        "description": "비교 대조 분석 - RLM() 재귀 호출 권장",
-    },
-    "5": {
-        "name": "[Wiki] 조선시대 문서 찾기 (Verifiable)",
-        "query": "이 데이터셋에서 '조선'이라는 단어가 포함된 문서는 몇 개인지 세어주고, 그 중 가장 긴 문서의 제목을 알려줘.",
-        "description": "검증 가능한 검색 작업 (grep/wc로 확인 가능)",
-    },
-    "6": {
-        "name": "[Wiki] 주제 분류 (Complex)",
-        "query": "전체 문서를 훑어보고 주요 카테고리 5개를 정의한 뒤, 각 카테고리에 속하는 대표적인 문서 제목을 3개씩 나열해줘.",
-        "description": "전체적인 이해와 분류 능력 테스트",
-    },
-    "7": {
-        "name": "Custom Query",
-        "query": None,
-        "description": "직접 질문 입력",
-    },
-}
-
-DATASETS = {
-    "1": {
-        "name": "NSMC (네이버 영화 리뷰)",
-        "path": "data/ratings_train.txt",
-        "url": "https://raw.githubusercontent.com/e9t/nsmc/master/ratings_train.txt",
-    },
-    "2": {
-        "name": "Korean CSV/Text (Wiki Sample)",
-        "path": "data/wiki_ko_sample.txt",
-        "url": None,  # Local only
-    },
-}
-
-CONTEXT_SIZES = {
-    "100k": 100000,
-    "500k": 500000,
-    "1m": 1000000,
-    "full": None,  # Will be set to full length
-}
-
-
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Recursive Language Model (RLM) Runner",
+        description="Recursive Language Model (RLM) - Unified CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run src/main.py                        # Interactive mode
-  uv run src/main.py -q 1                   # Run query 1 (Simple)
-  uv run src/main.py -q 3 -s 500k           # Run query 3 with 500K context
-  uv run src/main.py --query "질문" -s 1m   # Custom query with 1M context
-  uv run src/main.py --list                 # List available queries
+  uv run src/main.py                          # Interactive mode
+  uv run src/main.py -q 1                     # Run query 1
+  uv run src/main.py -d 3 -q 8 -s 500k        # Law dataset, query 8, 500K context
+  uv run src/main.py --benchmark -d 1 -q 1    # Benchmark: Baseline vs Optimized
+  uv run src/main.py --benchmark --baseline   # Benchmark: Baseline only
+  uv run src/main.py --list                   # List available queries
+  uv run src/main.py --list-datasets          # List available datasets
         """,
     )
+
+    # Query options
     parser.add_argument(
-        "-q", "--query", type=str, help="Query number (1-7) or custom query string"
+        "-q", "--query", type=str, help="Query number (1-10) or custom query string"
     )
     parser.add_argument(
         "-d",
         "--dataset",
         type=str,
-        choices=["1", "2"],
+        choices=list(DATASETS.keys()),
         default="1",
-        help="Dataset selection: 1=NSMC, 2=Wiki",
+        help="Dataset: 1=NSMC, 2=Wiki, 3=Law Insider",
     )
     parser.add_argument(
         "-s",
         "--size",
         type=str,
-        choices=["100k", "500k", "1m", "full"],
+        choices=list(CONTEXT_SIZES.keys()),
         default="100k",
         help="Context size (default: 100k)",
     )
+
+    # Mode options
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark mode (compare Baseline vs Optimized)",
+    )
+    parser.add_argument(
+        "--baseline",
+        action="store_true",
+        help="In benchmark mode: run baseline only",
+    )
+    parser.add_argument(
+        "--optimized",
+        action="store_true",
+        help="In benchmark mode: run optimized only",
+    )
+    parser.add_argument(
+        "-o", "--output", type=str, help="Save benchmark results to JSON file"
+    )
+
+    # Other options
     parser.add_argument(
         "--list", action="store_true", help="List available test queries and exit"
+    )
+    parser.add_argument(
+        "--list-datasets", action="store_true", help="List available datasets and exit"
     )
     parser.add_argument(
         "--sandbox",
         action="store_true",
         help="Enable RestrictedPython sandbox (safer but slower)",
     )
+
     return parser.parse_args()
+
+
+def list_queries():
+    """Display available test queries."""
+    print(colored("\n📋 Available Test Queries:", "cyan", attrs=["bold"]))
+    print("-" * 70)
+
+    for key, info in TEST_QUERIES.items():
+        print(f"  [{key:>2}] {info['name']}")
+        print(f"       {info['description']}")
+        if info["query"]:
+            query_preview = (
+                info["query"][:55] + "..." if len(info["query"]) > 55 else info["query"]
+            )
+            print(colored(f"       → {query_preview}", "dark_grey"))
+    print()
+
+
+def list_datasets():
+    """Display available datasets."""
+    print(colored("\n📂 Available Datasets:", "cyan", attrs=["bold"]))
+    print("-" * 50)
+
+    for key, info in DATASETS.items():
+        status = "✅" if os.path.exists(info["path"]) else "❌ (not found)"
+        print(f"  [{key}] {info['name']}")
+        print(f"      Path: {info['path']} {status}")
+    print()
 
 
 def select_query_interactive() -> str:
@@ -133,7 +141,7 @@ def select_query_interactive() -> str:
         print(f"      └─ {info['description']}")
 
     print("-" * 60)
-    choice = input(colored("선택 (1-5): ", "yellow")).strip()
+    choice = input(colored("선택 (1-10): ", "yellow")).strip()
 
     if choice not in TEST_QUERIES:
         print(colored("잘못된 선택. 기본값 1 사용.", "red"))
@@ -155,7 +163,7 @@ def select_size_interactive(full_length: int) -> int:
     print("  [1] 100K chars (기본, 빠름)")
     print("  [2] 500K chars (중간)")
     print("  [3] 1M chars (대용량)")
-    print("  [4] 전체 사용 (~14MB)")
+    print("  [4] 전체 사용")
 
     size_choice = input(colored("선택 (1-4, 기본=1): ", "yellow")).strip() or "1"
     limits = {"1": 100000, "2": 500000, "3": 1000000, "4": full_length}
@@ -167,6 +175,12 @@ def load_context(data_file: str, data_url: str) -> str:
     if not os.path.exists(data_file):
         if data_url is None:
             print(colored(f"Error: Local file {data_file} not found.", "red"))
+            print(
+                colored(
+                    "Hint: Run 'uv run src/extract_documents.py' for Law Insider dataset.",
+                    "yellow",
+                )
+            )
             sys.exit(1)
 
         print(colored(f"Downloading {data_file}...", "yellow"))
@@ -187,17 +201,65 @@ def load_context(data_file: str, data_url: str) -> str:
         return f.read()
 
 
+def run_optimized_mode(context: str, query: str, use_sandbox: bool = False):
+    """Run optimized RLM only."""
+    from src.rlm_optimized import RLMAgent
+
+    agent = RLMAgent()
+
+    if use_sandbox:
+        print(colored("⚠️  Sandbox mode enabled (RestrictedPython)", "yellow"))
+        agent.use_sandbox = True
+
+    final_answer = agent.run(context, query)
+
+    print(colored("\n" + "═" * 60, "green"))
+    print(colored("📌 Final Answer from RLM:", "green", attrs=["bold"]))
+    print(colored("═" * 60, "green"))
+    print(final_answer)
+
+    # Print stats
+    if hasattr(agent, "recursion_guard"):
+        stats = agent.recursion_guard.get_stats()
+        print(colored(f"\n📈 Recursion Stats: {stats}", "cyan"))
+
+    print(
+        colored(
+            f"💰 Estimated Cost: ${agent.stats.get('estimated_cost', 0):.4f}", "cyan"
+        )
+    )
+
+
+def run_benchmark_mode(
+    context: str,
+    query: str,
+    run_baseline: bool = True,
+    run_optimized: bool = True,
+    output_file: str = None,
+):
+    """Run benchmark comparison."""
+    from src.benchmark import run_benchmark
+
+    run_benchmark(
+        context=context,
+        query=query,
+        run_baseline=run_baseline,
+        run_optimized=run_optimized,
+        output_file=output_file,
+    )
+
+
 def main():
     args = parse_args()
 
     # List queries and exit
     if args.list:
-        print(colored("\n📋 Available Test Queries:", "cyan", attrs=["bold"]))
-        for key, info in TEST_QUERIES.items():
-            print(f"  [{key}] {info['name']}")
-            print(f"      {info['description']}")
-            if info["query"]:
-                print(f"      Query: {info['query'][:60]}...")
+        list_queries()
+        return
+
+    # List datasets and exit
+    if args.list_datasets:
+        list_datasets()
         return
 
     # Check API key
@@ -206,17 +268,18 @@ def main():
         print(colored("Error: GEMINI_API_KEY not found in .env.local", "red"))
         sys.exit(1)
 
+    # Header
+    mode_text = "Benchmark Mode" if args.benchmark else "Optimized Mode"
     print(colored("═" * 60, "green"))
-    print(colored("  Recursive Language Model (RLM) Runner", "green", attrs=["bold"]))
+    print(
+        colored(
+            f"  Recursive Language Model (RLM) - {mode_text}", "green", attrs=["bold"]
+        )
+    )
     print(colored("═" * 60, "green"))
 
-    # Load context
-    # Select dataset
-    if args.dataset == "2":
-        dataset_info = DATASETS["2"]
-    else:
-        dataset_info = DATASETS["1"]
-
+    # Load dataset
+    dataset_info = DATASETS.get(args.dataset, DATASETS["1"])
     data_file = dataset_info["path"]
     data_url = dataset_info["url"]
 
@@ -226,12 +289,15 @@ def main():
     # Determine context size
     if args.query:
         # CLI mode
-        context_limit = CONTEXT_SIZES.get(args.size, 100000)
+        context_limit = CONTEXT_SIZES.get(args.size)
         if context_limit is None:
             context_limit = len(full_text)
     else:
         # Interactive mode
         context_limit = select_size_interactive(len(full_text))
+
+    if context_limit > len(full_text):
+        context_limit = len(full_text)
 
     sample_context = full_text[:context_limit]
     print(f"Context loaded: {len(sample_context):,} characters")
@@ -249,31 +315,25 @@ def main():
         # Interactive mode
         query = select_query_interactive()
 
-    # Run RLM
-    agent = RLMAgent()
+    # Run
+    if args.benchmark:
+        # Determine what to run
+        if args.baseline and not args.optimized:
+            run_baseline, run_optimized = True, False
+        elif args.optimized and not args.baseline:
+            run_baseline, run_optimized = False, True
+        else:
+            run_baseline, run_optimized = True, True
 
-    # Enable sandbox if requested (Phase 3 feature)
-    if args.sandbox:
-        print(colored("⚠️  Sandbox mode enabled (RestrictedPython)", "yellow"))
-        agent.use_sandbox = True
-
-    final_answer = agent.run(sample_context, query)
-
-    print(colored("\n" + "═" * 60, "green"))
-    print(colored("📌 Final Answer from RLM:", "green", attrs=["bold"]))
-    print(colored("═" * 60, "green"))
-    print(final_answer)
-
-    # Print stats
-    if hasattr(agent, "recursion_guard"):
-        stats = agent.recursion_guard.get_stats()
-        print(colored(f"\n📈 Recursion Stats: {stats}", "cyan"))
-
-    print(
-        colored(
-            f"💰 Estimated Cost: ${agent.stats.get('estimated_cost', 0):.4f}", "cyan"
+        run_benchmark_mode(
+            context=sample_context,
+            query=query,
+            run_baseline=run_baseline,
+            run_optimized=run_optimized,
+            output_file=args.output,
         )
-    )
+    else:
+        run_optimized_mode(sample_context, query, use_sandbox=args.sandbox)
 
 
 if __name__ == "__main__":

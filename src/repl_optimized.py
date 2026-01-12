@@ -250,9 +250,6 @@ class PythonREPL:
             # Compile with restrictions
             byte_code = compile_restricted(code, "<user_code>", "exec")
 
-            if byte_code.errors:
-                return f"Compilation Error: {byte_code.errors}"
-
             # Create restricted globals
             restricted_globals = {
                 "__builtins__": safe_builtins,
@@ -265,7 +262,7 @@ class PythonREPL:
             }
 
             with contextlib.redirect_stdout(stdout_buffer):
-                exec(byte_code.code, restricted_globals)
+                exec(byte_code, restricted_globals)
 
             output = stdout_buffer.getvalue()
             if not output:

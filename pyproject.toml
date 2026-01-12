@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "google-genai",
+    "pymupdf",
+    "python-docx",
     "python-dotenv",
     "restrictedpython>=8.1",
     "termcolor",
