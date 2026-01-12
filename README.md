@@ -1,6 +1,6 @@
-# RLM: Recursive Language Models
+# RLM: Recursive Language Model
 
-Gemini 기반 Recursive Language Model 구현 및 벤치마크.
+Gemini 기반 Recursive Language Model 구현. **동적 파일 접근** 아키텍처로 대용량 프로젝트 분석 가능.
 
 ## 설치
 
@@ -12,67 +12,108 @@ cp .env.local.example .env.local
 
 ## 사용법
 
-### 기본 실행 (대화형)
+### 🖥️ TUI 모드
 ```bash
-uv run src/main.py
+python -m rlm
 ```
 
-### CLI 모드
+**슬래시 명령어:**
+| 명령어 | 설명 |
+|--------|------|
+| `/project` | 프로젝트 목록 보기 |
+| `/project <N>` | 프로젝트 N 선택 |
+| `/model` | 사용 가능한 모델 목록 |
+| `/model <name>` | 모델 변경 |
+| `/help` | 도움말 |
+| `/clear` | 채팅 초기화 |
+
+**단축키:**
+| 키 | 동작 |
+|----|------|
+| `Ctrl+P` | 명령어 팔레트 |
+| `Ctrl+L` | 채팅 초기화 |
+| `Ctrl+Q` | 종료 |
+
+### 📊 벤치마크 (모델 비교)
 ```bash
-uv run src/main.py -q 1              # 쿼리 1번 실행
-uv run src/main.py -q 3 -s 500k      # 쿼리 3번, 500K 컨텍스트
-uv run src/main.py -d 3 -q 8         # Law Insider 데이터셋, 쿼리 8번
-uv run src/main.py --query "커스텀 질문"
-uv run src/main.py --list            # 쿼리 목록
-uv run src/main.py --list-datasets   # 데이터셋 목록
-uv run src/main.py --sandbox         # 보안 샌드박스 모드
+# 모델 비교
+python -m rlm.cli.benchmark -p 1 -q "질문" -m "gemini-3-flash-preview,gemini-2.5-flash"
+
+# 결과 JSON 저장
+python -m rlm.cli.benchmark -p 1 -q "질문" -o results.json
+
+# 프로젝트 목록
+python -m rlm.cli.benchmark --list
 ```
 
-### 벤치마크 (Baseline vs Optimized)
+## 환경변수
+
+`.env.local`:
 ```bash
-uv run src/main.py --benchmark -q 1 -d 1        # 전체 비교
-uv run src/main.py --benchmark --baseline -q 1  # Baseline만
-uv run src/main.py --benchmark --optimized -q 8 -d 3  # Optimized만
-uv run src/main.py --benchmark -q 1 -o results.json   # 결과 저장
+# 필수
+GEMINI_API_KEY=your_api_key
+
+# 기본 모델
+GEMINI_MODEL_NAME=gemini-3-flash-preview
+
+# 모델 목록 커스텀 (선택)
+RLM_AVAILABLE_MODELS=gemini-3-flash-preview,gemini-2.5-flash,gemini-2.5-pro
 ```
 
-### Law Insider 데이터셋 (PDF/DOCX 추출)
-```bash
-uv run src/extract_documents.py      # PDF/DOCX → 텍스트 추출
-uv run src/main.py -d 3 -q 9 -s 100k # 정의 조항 찾기
+## 동적 파일 접근 (핵심 기능)
+
+LLM이 **REPL 도구**를 통해 프로젝트 파일을 동적으로 탐색:
+
+| 도구 | 설명 |
+|------|------|
+| `list_files()` | 프로젝트 내 파일 목록 |
+| `read_file(name, start, max)` | 파일 내용 읽기 (라인 범위) |
+| `search_files(keyword)` | 키워드 검색 |
+| `get_file_info(name)` | 파일 메타정보 |
+
+**지원 포맷:** PDF, DOCX, PPTX, TXT, MD, CSV, JSON, XML, PY, JS, HTML, CSS 등
+
+## 프로젝트 추가
+
+`data/projects/` 폴더에 하위 폴더 생성:
+
+```
+data/projects/
+├── 내프로젝트/          # 자동 인식
+│   ├── doc1.pdf
+│   ├── doc2.docx
+│   └── notes.txt
+└── 법률문서/
+    └── contract.pdf
 ```
 
-## 구조
+## 프로젝트 구조
 
 ```
-src/
-├── main.py              # 통합 CLI 진입점 (벤치마크 포함)
-├── datasets.py          # 데이터셋/쿼리 설정 (공유)
-├── rlm_optimized.py     # 최적화 RLM (캐싱, 병렬)
-├── benchmark.py         # 벤치마크 유틸리티 (라이브러리)
-├── extract_documents.py # PDF/DOCX 텍스트 추출
+rlm_project/
 ├── rlm/
-│   ├── baseline.py      # 원 논문 방식
-│   ├── base.py          # 공통 베이스 클래스
-│   └── config.py        # 가격 설정
-├── repl_optimized.py    # 최적화 REPL
-└── llm_client.py        # Gemini API 클라이언트
+│   ├── cli/
+│   │   ├── main.py         # TUI 런처
+│   │   └── benchmark.py    # 벤치마크 CLI
+│   ├── tui/
+│   │   ├── app.py          # TUI 앱
+│   │   └── styles.tcss     # 스타일
+│   ├── core/
+│   │   ├── agent.py        # RLM 에이전트
+│   │   └── config.py       # 설정
+│   ├── repl/
+│   │   └── executor.py     # REPL + 파일 도구
+│   ├── llm/
+│   │   └── client.py       # Gemini 클라이언트
+│   ├── data/
+│   │   └── datasets.py     # 프로젝트 로더
+│   └── parsers/
+│       └── loader.py       # PDF/DOCX/PPTX 파서
+│
+├── data/projects/          # 프로젝트 폴더들
+└── logs/                   # 로그 파일
 ```
 
-## 데이터셋
+## 라이선스
 
-| ID | 이름 | 설명 |
-|----|------|------|
-| 1 | NSMC | 네이버 영화 리뷰 (자동 다운로드) |
-| 2 | Wiki | 한국어 위키피디아 샘플 |
-| 3 | Law Insider | 법률 계약서 (extract_documents.py 실행 필요) |
-
-## 개선 사항 (vs 원 논문)
-
-| 기능 | Baseline | Optimized |
-|------|----------|-----------|
-| llm_query | 순차 | 캐싱 |
-| llm_query_batch | ❌ | ✅ 병렬 |
-| RecursionGuard | ❌ | ✅ |
-| 비용 추적 | ❌ | ✅ |
-| 출력 Truncation | ❌ | ✅ |
+MIT

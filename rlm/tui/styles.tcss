@@ -1,0 +1,182 @@
+/* RLM TUI Stylesheet */
+
+/* Global */
+Screen {
+    background: $surface;
+}
+
+/* Header */
+Header {
+    dock: top;
+    height: 1;
+    background: $primary;
+}
+
+/* Main container */
+#main-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Sidebar */
+#sidebar {
+    width: 28;
+    background: $surface-darken-1;
+    border-right: solid $primary;
+    padding: 1;
+}
+
+.section-title {
+    margin-top: 1;
+    margin-bottom: 0;
+    color: $text-muted;
+}
+
+#dataset-list, #query-list {
+    height: auto;
+    max-height: 10;
+    margin: 0;
+    padding: 0;
+    background: $surface-darken-1;
+}
+
+#dataset-list > ListItem, #query-list > ListItem {
+    padding: 0 1;
+    height: 1;
+}
+
+#dataset-list > ListItem:hover, #query-list > ListItem:hover {
+    background: $primary-darken-2;
+}
+
+#dataset-list > ListItem.selected {
+    background: $primary;
+    color: $text;
+}
+
+#context-size {
+    margin-top: 1;
+    color: $text-muted;
+}
+
+/* Chat area */
+#chat-area {
+    width: 1fr;
+    padding: 1;
+}
+
+#chat-log {
+    height: 1fr;
+    border: solid $primary-darken-2;
+    padding: 1;
+    background: $surface-darken-1;
+}
+
+/* ============================================
+   Chat Messages - Visual Separation
+   ============================================ */
+
+ChatMessage {
+    margin-bottom: 1;
+    width: 100%;
+    padding: 0 1;
+}
+
+/* User Message: Cyan border */
+.user-message {
+    color: $text;
+    border-left: heavy $primary;
+    padding-left: 1;
+    margin-bottom: 1;
+}
+
+/* Answer Header */
+.answer-header {
+    color: $success;
+    margin-top: 1;
+}
+
+/* Assistant Response: Green border */
+.assistant-message {
+    border-left: heavy $success;
+    padding-left: 1;
+    margin-left: 0;
+}
+
+/* Thinking Header */
+.thinking-header {
+    color: $warning;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+/* Status message */
+.status-message {
+    color: $text-muted;
+    text-style: italic;
+}
+
+/* Error message */
+.error-message {
+    color: $error;
+    border-left: heavy $error;
+    padding-left: 1;
+}
+
+/* ============================================
+   Thinking Steps - Yellow/Orange theme
+   ============================================ */
+
+ThinkingStep {
+    width: 100%;
+    height: auto;
+    margin-bottom: 0;
+    padding: 0 1;
+    border-left: solid $warning;
+    margin-left: 1;
+}
+
+ThinkingStep:hover {
+    background: $surface-darken-2;
+}
+
+.step-complete {
+    color: $text-muted;
+}
+
+.step-title {
+    color: $warning;
+}
+
+.step-content {
+    color: $text-muted;
+    margin-left: 2;
+}
+
+/* Stats bar */
+#stats-bar {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+/* Loading */
+#loading {
+    height: 1;
+    margin: 1 0;
+}
+
+/* Input */
+#chat-input {
+    dock: bottom;
+    margin-top: 1;
+}
+
+#chat-input:focus {
+    border: solid $primary;
+}
+
+/* Footer */
+Footer {
+    dock: bottom;
+}
